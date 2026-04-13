@@ -4,129 +4,122 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# Konfigurasi Halaman
-st.set_page_config(page_title="Finance Dashboard ASDP", layout="wide")
+# Set page configuration
+st.set_page_config(
+    page_title="CashFlow Pro Dashboard",
+    page_icon="💰",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Styling Custom (Mirip dengan versi React)
+# Custom CSS for a more polished look
 st.markdown("""
     <style>
-    .main { background-color: #F8F9FB; }
-    .stMetric { background-color: white; padding: 20px; border-radius: 15px; border: 1px solid #f0f0f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .main {
+        background-color: #f8fafc;
+    }
+    .stMetric {
+        background-color: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border: 1px solid #f1f5f9;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 24px;
+        font-weight: 700;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# Fungsi Ambil Data
-@st.cache_data(ttl=60) # Cache selama 1 menit (Auto-refresh)
-def load_data():
-    import requests
-    import io
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
-    
-    # 1. Ambil Data Inflow (Sheet: april, Cell: L482)
-    # Menggunakan format /pub?output=csv yang lebih stabil untuk Publish to the Web
-    inflow_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_p_p7L_p_p7L_p_p7L_p_p7L_p_p7L_p_p7L_p_p7L/pub?output=csv&sheet=april"
-    # Catatan: Jika link di atas tidak bekerja, gunakan link 'Published' yang muncul di kotak dialog Publish to the Web Anda.
-    
-    # Karena link ID di atas adalah contoh, saya akan tetap menggunakan ID asli Anda tapi dengan format /pub
-    inflow_url = "https://docs.google.com/spreadsheets/d/1ongKEVtqOlKQpgbZzkuAH740zHEaRp4T/pub?output=csv&sheet=april"
-    
-    inflow_res = requests.get(inflow_url, headers=headers)
-    if inflow_res.status_code != 200:
-        # Jika masih 401, kita coba paksa tanpa headers
-        inflow_res = requests.get(inflow_url)
-        
-    if inflow_res.status_code != 200:
-        raise Exception(f"Inflow Sheet Error: {inflow_res.status_code}. Google memblokir akses. Pastikan opsi 'Restrict to organization' di menu Publish TIDAK dicentang.")
-    
-    df_inflow = pd.read_csv(io.StringIO(inflow_res.text))
-    
-    # ... (logika inflow tetap sama)
+def format_idr(amount):
+    return f"Rp {amount:,.0f}".replace(",", ".")
 
-    # 2. Ambil Data Outflow (Sheet: Summary Cash Outflow)
-    outflow_url = "https://docs.google.com/spreadsheets/d/1CwkwjqbLAm8btPHuV0NNYOogp_Ltc83k/pub?output=csv&gid=1507358761"
+def main():
+    st.title("💰 CashFlow Pro Dashboard")
+    st.markdown("Monitor arus kas Anda dengan mudah melalui upload file Excel.")
     
-    outflow_res = requests.get(outflow_url, headers=headers)
-    if outflow_res.status_code != 200:
-        outflow_res = requests.get(outflow_url)
-        
-    if outflow_res.status_code != 200:
-        raise Exception(f"Outflow Sheet Error: {outflow_res.status_code}. Google memblokir akses.")
+    st.sidebar.header("Pengaturan & Upload")
+    uploaded_file = st.sidebar.file_uploader("Upload file Excel (.xlsx)", type=["xlsx"])
     
-    df_outflow = pd.read_csv(io.StringIO(outflow_res.text))
-    
-    # Bersihkan nama kolom (menghapus spasi berlebih)
-    df_outflow.columns = [c.strip() for c in df_outflow.columns]
-    
-    # Penjumlahan Kolom C sampai K (Index 2 sampai 10)
-    # Kolom: PAYMENT AP, PETTYFUND REIMBURSE, PEMBAYARAN LAIN, PETTYFUND KASBON, ..., OPEX, CAPEX
-    cols_to_sum = df_outflow.columns[2:11] 
-    for col in cols_to_sum:
-        df_outflow[col] = pd.to_numeric(df_outflow[col].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-    
-    df_outflow['Total_Row_Outflow'] = df_outflow[cols_to_sum].sum(axis=1)
-    
-    return total_inflow, df_outflow, cols_to_sum
-
-# Load Data
-try:
-    total_inflow, df_outflow, categories = load_data()
-    
-    # Sidebar & Filter
-    st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Logo_ASDP_Indonesia_Ferry.png/800px-Logo_ASDP_Indonesia_Ferry.png", width=150)
-    st.sidebar.title("Filters")
-    
-    # Filter Bulan (Berdasarkan Kolom A)
-    all_months = ["All"] + sorted(df_outflow.iloc[:, 0].dropna().unique().tolist())
-    selected_month = st.sidebar.selectbox("Select Month", all_months)
-    
-    # Filter Data
-    if selected_month != "All":
-        filtered_df = df_outflow[df_outflow.iloc[:, 0] == selected_month]
+    # Sample Data if no file is uploaded
+    if uploaded_file is None:
+        st.info("💡 Silakan upload file Excel di sidebar. Menampilkan data contoh saat ini.")
+        data = {
+            'Date': ['2024-03-01', '2024-03-05', '2024-03-10', '2024-03-15', '2024-03-20'],
+            'Category': ['Salary', 'Rent', 'Food', 'Freelance', 'Transport'],
+            'Description': ['Gaji Bulanan', 'Sewa Apartemen', 'Belanja Bulanan', 'Proyek Sampingan', 'Bensin'],
+            'Amount': [15000000, 4500000, 1200000, 3500000, 800000],
+            'Type': ['Income', 'Expense', 'Expense', 'Income', 'Expense']
+        }
+        df = pd.DataFrame(data)
     else:
-        filtered_df = df_outflow
+        try:
+            df = pd.read_excel(uploaded_file)
+            # Basic validation
+            required_cols = ['Date', 'Category', 'Description', 'Amount', 'Type']
+            if not all(col in df.columns for col in required_cols):
+                st.error(f"File Excel harus memiliki kolom: {', '.join(required_cols)}")
+                return
+        except Exception as e:
+            st.error(f"Terjadi kesalahan saat membaca file: {e}")
+            return
 
-    # Header
-    st.title("🚢 FINANCE STATUS DASHBOARD")
-    st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-    # Row 1: Stats Cards
-    total_outflow = filtered_df['Total_Row_Outflow'].sum()
-    balance = total_inflow - total_outflow
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Inflow", f"IDR {total_inflow:,.0f}")
-    col2.metric("Total Outflow (C-K)", f"IDR {total_outflow:,.0f}")
-    col3.metric("Monthly Balance", f"IDR {balance:,.0f}")
-
-    st.divider()
-
-    # Row 2: Charts
-    c1, c2 = st.columns([2, 1])
+    # Data Processing
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values('Date')
     
-    with c1:
-        st.subheader("Cash Outflow by Category")
-        # Agregasi per kategori untuk chart
-        cat_data = []
-        for cat in categories:
-            cat_data.append({"Category": cat, "Amount": filtered_df[cat].sum()})
-        df_cat = pd.DataFrame(cat_data)
-        
-        fig = px.bar(df_cat, x="Category", y="Amount", color="Category", 
-                     text_auto='.2s', title="Distribution of Expenses")
-        st.plotly_chart(fig, use_container_width=True)
+    total_income = df[df['Type'].str.lower() == 'income']['Amount'].sum()
+    total_expense = df[df['Type'].str.lower() == 'expense']['Amount'].sum()
+    net_cashflow = total_income - total_expense
 
-    with c2:
-        st.subheader("Inflow vs Outflow")
-        fig_pie = go.Figure(data=[go.Pie(labels=['Inflow', 'Outflow'], 
-                                         values=[total_inflow, total_outflow],
-                                         hole=.3,
-                                         marker_colors=['#1d4ed8', '#bfdbfe'])])
-        st.plotly_chart(fig_pie, use_container_width=True)
+    # Summary Metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Pemasukan", format_idr(total_income), delta=None)
+    with col2:
+        st.metric("Total Pengeluaran", format_idr(total_expense), delta_color="inverse")
+    with col3:
+        st.metric("Saldo Bersih", format_idr(net_cashflow), delta=None)
 
-    # Row 3: Data Table
-    st.subheader("Detailed Transaction Log")
-    st.dataframe(filtered_df.iloc[:, [0, 1] + list(range(2, 11)) + [-1]], use_container_width=True)
+    st.markdown("---")
 
-except Exception as e:
-    st.error(f"Gagal memuat data dari Spreadsheet. Pastikan link dapat diakses. Error: {e}")
-    st.info("Tips: Pastikan Spreadsheet diatur ke 'Anyone with the link can view'.")
+    # Charts
+    chart_col1, chart_col2 = st.columns(2)
+
+    with chart_col1:
+        st.subheader("📈 Tren Arus Kas")
+        # Group by date for trend
+        trend_df = df.groupby(['Date', 'Type'])['Amount'].sum().reset_index()
+        fig_trend = px.area(trend_df, x='Date', y='Amount', color='Type',
+                           color_discrete_map={'Income': '#10b981', 'Expense': '#ef4444'},
+                           line_shape='spline', template='plotly_white')
+        fig_trend.update_layout(height=400, margin=dict(l=20, r=20, t=20, b=20))
+        st.plotly_chart(fig_trend, use_container_width=True)
+
+    with chart_col2:
+        st.subheader("🍕 Distribusi Pengeluaran")
+        expense_df = df[df['Type'].str.lower() == 'expense']
+        if not expense_df.empty:
+            fig_pie = px.pie(expense_df, values='Amount', names='Category',
+                            hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig_pie.update_layout(height=400, margin=dict(l=20, r=20, t=20, b=20))
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.write("Belum ada data pengeluaran untuk ditampilkan.")
+
+    # Transaction Table
+    st.subheader("📑 Daftar Transaksi Terbaru")
+    st.dataframe(df.sort_values('Date', ascending=False), use_container_width=True)
+
+    # Download processed data
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Download Data sebagai CSV",
+        data=csv,
+        file_name='cashflow_data.csv',
+        mime='text/csv',
+    )
+
+if __name__ == "__main__":
+    main()
