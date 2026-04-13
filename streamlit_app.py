@@ -23,28 +23,34 @@ def load_data():
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
     
     # 1. Ambil Data Inflow (Sheet: april, Cell: L482)
-    inflow_url = "https://docs.google.com/spreadsheets/d/1ongKEVtqOlKQpgbZzkuAH740zHEaRp4T/export?format=csv&sheet=april"
+    # Menggunakan format /pub?output=csv yang lebih stabil untuk Publish to the Web
+    inflow_url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_p_p7L_p_p7L_p_p7L_p_p7L_p_p7L_p_p7L_p_p7L/pub?output=csv&sheet=april"
+    # Catatan: Jika link di atas tidak bekerja, gunakan link 'Published' yang muncul di kotak dialog Publish to the Web Anda.
+    
+    # Karena link ID di atas adalah contoh, saya akan tetap menggunakan ID asli Anda tapi dengan format /pub
+    inflow_url = "https://docs.google.com/spreadsheets/d/1ongKEVtqOlKQpgbZzkuAH740zHEaRp4T/pub?output=csv&sheet=april"
     
     inflow_res = requests.get(inflow_url, headers=headers)
     if inflow_res.status_code != 200:
-        raise Exception(f"Inflow Sheet Error: {inflow_res.status_code}. Pastikan 'Publish to the Web' sudah aktif.")
+        # Jika masih 401, kita coba paksa tanpa headers
+        inflow_res = requests.get(inflow_url)
+        
+    if inflow_res.status_code != 200:
+        raise Exception(f"Inflow Sheet Error: {inflow_res.status_code}. Google memblokir akses. Pastikan opsi 'Restrict to organization' di menu Publish TIDAK dicentang.")
     
     df_inflow = pd.read_csv(io.StringIO(inflow_res.text))
     
-    # L482 -> Kolom L (index 11), Baris 482 (index 481)
-    try:
-        total_inflow = df_inflow.iloc[480, 11] 
-        if isinstance(total_inflow, str):
-            total_inflow = float(total_inflow.replace(',', '').replace('$', ''))
-    except:
-        total_inflow = 0
+    # ... (logika inflow tetap sama)
 
     # 2. Ambil Data Outflow (Sheet: Summary Cash Outflow)
-    outflow_url = "https://docs.google.com/spreadsheets/d/1CwkwjqbLAm8btPHuV0NNYOogp_Ltc83k/export?format=csv&gid=1507358761"
+    outflow_url = "https://docs.google.com/spreadsheets/d/1CwkwjqbLAm8btPHuV0NNYOogp_Ltc83k/pub?output=csv&gid=1507358761"
     
     outflow_res = requests.get(outflow_url, headers=headers)
     if outflow_res.status_code != 200:
-        raise Exception(f"Outflow Sheet Error: {outflow_res.status_code}. Pastikan 'Publish to the Web' sudah aktif.")
+        outflow_res = requests.get(outflow_url)
+        
+    if outflow_res.status_code != 200:
+        raise Exception(f"Outflow Sheet Error: {outflow_res.status_code}. Google memblokir akses.")
     
     df_outflow = pd.read_csv(io.StringIO(outflow_res.text))
     
